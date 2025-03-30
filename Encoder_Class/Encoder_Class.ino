@@ -6,6 +6,7 @@ private:
     unsigned long lastUpdateTime;
     static constexpr float wheelCircumference = 3.14159 * 3.0; // 30mm diameter in cm
     static constexpr int ppr = 250;
+    static constexpr unsigned long updateInterval = 100; // Timeframe in ms
 
 public:
     Encoder(int encoderPin) {
@@ -22,10 +23,8 @@ public:
 
     void calculateSpeed() {
         unsigned long currentTime = millis();
-        unsigned long elapsedTime = currentTime - lastUpdateTime;
-        if (elapsedTime > 0) {
-            // Calculate speed in cm/s
-            speed = (count / (float)ppr) * wheelCircumference / (elapsedTime / 1000.0);
+        if (currentTime - lastUpdateTime >= updateInterval) {
+            speed = (count / (float)ppr) * wheelCircumference / (updateInterval / 1000.0);
             count = 0; // Reset count for the next timeframe
             lastUpdateTime = currentTime;
         }
@@ -36,18 +35,45 @@ public:
     }
 };
 
+class Motor {
+private:
+    int pwmPin;
+    int dirPin;
+
+public:
+    Motor(int pwm, int dir) {
+        pwmPin = pwm;
+        dirPin = dir;
+        pinMode(pwmPin, OUTPUT);
+        pinMode(dirPin, OUTPUT);
+    }
+
+    void setSpeed(int speed) {
+        if (speed >= 0) {
+            digitalWrite(dirPin, LOW); // Forward
+            analogWrite(pwmPin, speed);
+        } else {
+            digitalWrite(dirPin, HIGH); // Backward
+            analogWrite(pwmPin, -speed);
+        }
+    }
+};
+
 Encoder leftEncoder(2);
 Encoder rightEncoder(3);
+Motor leftMotor(10, 5);
+Motor rightMotor(9, 6);
 
 void setup() {
     Serial.begin(115200);
     pinMode(2, INPUT_PULLUP);
     pinMode(3, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(2), [] { leftEncoder.update(); }, FALLING);
-    attachInterrupt(digitalPinToInterrupt(3), [] { rightEncoder.update(); }, FALLING);
 }
 
 void loop() {
+    if (digitalRead(2) == LOW) leftEncoder.update();
+    if (digitalRead(3) == LOW) rightEncoder.update();
+
     leftEncoder.calculateSpeed();
     rightEncoder.calculateSpeed();
 
@@ -56,5 +82,5 @@ void loop() {
     Serial.print(" cm/s | Right Speed: ");
     Serial.println(rightEncoder.getSpeed());
     
-    delay(100); // Adjust delay as needed for your application
+    delay(10); // Shorter delay for more frequent updates
 }
